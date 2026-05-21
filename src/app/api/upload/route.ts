@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
 import { NextResponse } from 'next/server';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import mammoth from 'mammoth';
@@ -9,7 +8,6 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseStorage = createClient(url, serviceKey || anonKey);
 const supabase = createClient(url, anonKey);
-const openai = new OpenAI();
 
 type PdfParserError = {
   parserError?: string;
@@ -152,10 +150,35 @@ export async function POST(req: Request) {
 
       // Generate embedding using OpenAI
       // This converts the text chunk into a 1536-dimensional vector
-      const emb = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: chunk,
+      const cohereResponse = await fetch('https://api.cohere.ai/v1/embed', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'embed-english-v3.0',
+          texts: [chunk],
+          input_type: 'search_document',
+        }),
       });
+
+      if (!cohereResponse.ok) {
+        const errorText = await cohereResponse.text();
+        return NextResponse.json({
+          success: false,
+          error: errorText || 'Cohere embed failed',
+        }, { status: 500 });
+      }
+
+      const cohereData = (await cohereResponse.json()) as { embeddings: number[][] };
+      const embedding = cohereData.embeddings?.[0];
+      if (!embedding) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing Cohere embedding',
+        }, { status: 500 });
+      }
 
       // Store chunk with embedding in database
       const { error } = await supabase.from('documents').insert({
@@ -172,7 +195,7 @@ export async function POST(req: Request) {
           file_path: filePath,
           file_url: urlData.publicUrl,
         },
-        embedding: JSON.stringify(emb.data[0].embedding),
+        embedding: JSON.stringify(embedding),
       });
 
       if (error) {

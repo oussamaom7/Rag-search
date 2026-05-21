@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import { NextResponse } from 'next/server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
 );
-const openai = new OpenAI();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 type MatchResult = {
   content: string;
@@ -19,15 +19,34 @@ export async function POST(req: Request) {
 
     // Generate embedding for the user's query
     // This converts the search query into the same vector space as document chunks
-    const emb = await openai.embeddings.create({ 
-      model: 'text-embedding-3-small', 
-      input: query 
+    const cohereResponse = await fetch('https://api.cohere.ai/v1/embed', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.COHERE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'embed-english-v3.0',
+        texts: [query],
+        input_type: 'search_query',
+      }),
     });
+
+    if (!cohereResponse.ok) {
+      const errorText = await cohereResponse.text();
+      return NextResponse.json({ error: errorText || 'Cohere embed failed' }, { status: 500 });
+    }
+
+    const cohereData = (await cohereResponse.json()) as { embeddings: number[][] };
+    const queryEmbedding = cohereData.embeddings?.[0];
+    if (!queryEmbedding) {
+      return NextResponse.json({ error: 'Missing Cohere embedding' }, { status: 500 });
+    }
 
     // Find similar documents using vector similarity search
     // The match_documents function finds the 5 most similar chunks
     const { data: results, error } = await supabase.rpc('match_documents', {
-      query_embedding: JSON.stringify(emb.data[0].embedding),
+      query_embedding: JSON.stringify(queryEmbedding),
       match_threshold: 0.0,  // Accept any similarity (you can increase this for stricter matching)
       match_count: 5,        // Return top 5 most similar chunks
     });
@@ -43,8 +62,8 @@ export async function POST(req: Request) {
 
     // Generate answer using OpenAI with retrieved context
     // This is the "Generation" part of RAG
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const completion = await groq.chat.completions.create({
+      model: 'openai/gpt-oss-120b',
       messages: [
         { 
           role: 'system', 
@@ -58,7 +77,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ 
-      answer: completion.choices[0].message.content, 
+      answer: completion.choices[0].message.content || '', 
       sources: typedResults 
     });
   } catch (error) {
