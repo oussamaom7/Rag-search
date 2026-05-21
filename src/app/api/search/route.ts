@@ -6,6 +6,10 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
 );
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
+);
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 type MatchResult = {
@@ -45,7 +49,7 @@ export async function POST(req: Request) {
 
     // Find similar documents using vector similarity search
     // The match_documents function finds the 5 most similar chunks
-    const { data: results, error } = await supabase.rpc('match_documents', {
+    const { data: results, error } = await supabaseAdmin.rpc('match_documents', {
       query_embedding: JSON.stringify(queryEmbedding),
       match_threshold: 0.0,  // Accept any similarity (you can increase this for stricter matching)
       match_count: 5,        // Return top 5 most similar chunks

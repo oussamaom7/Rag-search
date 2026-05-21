@@ -5,6 +5,7 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || anonKey;
 const supabase = createClient(url, anonKey);
+const supabaseAdmin = createClient(url, serviceKey);
 const supabaseStorage = createClient(url, serviceKey);
 
 type DocumentMetadata = {
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
 
     // Handle file download/view
     if (id && file) {
-      const { data: documents, error: docError } = await supabase
+      const { data: documents, error: docError } = await supabaseAdmin
         .from('documents')
         .select('metadata')
         .eq('metadata->>document_id', id)
@@ -100,7 +101,7 @@ export async function GET(req: Request) {
 
     // Get single document with text content
     if (id) {
-      const { data: chunks, error } = await supabase
+      const { data: chunks, error } = await supabaseAdmin
         .from('documents')
         .select('content, metadata')
         .eq('metadata->>document_id', id)
@@ -130,7 +131,7 @@ export async function GET(req: Request) {
     }
 
     // List all documents
-    const { data: documents, error } = await supabase
+    const { data: documents, error } = await supabaseAdmin
       .from('documents')
       .select('metadata');
 
@@ -175,7 +176,7 @@ export async function DELETE(req: Request) {
     }
 
     // Get file path from metadata
-    const { data: docs } = await supabase
+    const { data: docs } = await supabaseAdmin
       .from('documents')
       .select('metadata')
       .eq('metadata->>document_id', id)
@@ -189,7 +190,7 @@ export async function DELETE(req: Request) {
     }
 
     // Delete all chunks from database
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('documents')
       .delete()
       .eq('metadata->>document_id', id);

@@ -8,6 +8,7 @@ const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseStorage = createClient(url, serviceKey || anonKey);
 const supabase = createClient(url, anonKey);
+const supabaseAdmin = createClient(url, serviceKey || anonKey);
 
 type PdfParserError = {
   parserError?: string;
@@ -181,7 +182,7 @@ export async function POST(req: Request) {
       }
 
       // Store chunk with embedding in database
-      const { error } = await supabase.from('documents').insert({
+      const { error } = await supabaseAdmin.from('documents').insert({
         content: chunk,
         metadata: { 
           source: file.name,
