@@ -1,5 +1,3 @@
-yarn dev
-
 # RAG Search App
 
 A full-stack Next.js application for searching, uploading, and viewing documents with Retrieval-Augmented Generation (RAG) capabilities. It integrates with Supabase for storage and vector search, and uses Cohere and Groq APIs for embeddings and LLM-powered answers.
